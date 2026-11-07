@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>$1000 Yatırım — Getiri Karşılaştırması</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  body { font-family:'Segoe UI',Arial,sans-serif; max-width:1400px; margin:0 auto; padding:20px; background:#f5f5f5; }
+  h1 { color:#1F4E79; text-align:center; margin-bottom:5px; }
+  .sub { text-align:center; color:#666; margin-bottom:20px; }
+  #status { padding:15px; border-radius:8px; margin-bottom:20px; font-size:14px; background:#FFF3CD; border:1px solid #FFC107; transition:all .3s; }
+  #status.error { background:#F8D7DA; border-color:#DC3545; color:#721C24; }
+  #status.success { background:#D4EDDA; border-color:#28A745; color:#155724; }
+  #status.warn { background:#FFE8B6; border-color:#FF9800; color:#7A4F00; }
+  .controls { text-align:center; margin-bottom:20px; }
+  button { background:#1F4E79; color:white; border:none; padding:11px 22px; border-radius:6px; cursor:pointer; font-size:14px; margin:0 5px; }
+  button:hover:not(:disabled) { background:#2a5f8f; }
+  button:disabled { background:#999; cursor:not-allowed; }
+  button.secondary { background:#6c757d; }
+  button.secondary:hover:not(:disabled) { background:#5a6268; }
+  button.danger { background:#DC3545; }
+  .chart-container { background:white; padding:20px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.1); margin-bottom:20px; height:620px; }
+  .summary-strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:10px; margin-bottom:20px; }
+  .summary-card { background:white; padding:12px 14px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); border-left:4px solid #ccc; transition:transform .15s; }
+  .summary-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.12); }
+  .summary-card .name { font-size:12px; color:#555; font-weight:600; margin-bottom:4px; letter-spacing:.3px; }
+  .summary-card .value { font-size:20px; font-weight:bold; color:#1F4E79; line-height:1.1; }
+  .summary-card .pct { font-size:13px; font-weight:bold; margin-top:2px; }
+  .summary-card .price { font-size:11px; color:#888; margin-top:6px; padding-top:6px; border-top:1px solid #eee; }
+  .summary-card .price b { color:#444; }
+  table { width:100%; border-collapse:collapse; background:white; box-shadow:0 2px 8px rgba(0,0,0,.1); border-radius:8px; overflow:hidden; }
+  th { background:#1F4E79; color:white; padding:11px 10px; text-align:left; font-size:13px; }
+  td { padding:10px; border-bottom:1px solid #eee; font-size:13px; }
+  tr:nth-child(even) { background:#EBF3FB; }
+  .best { background:#FFFF00 !important; font-weight:bold; }
+  .positive { color:#28A745; font-weight:bold; }
+  .negative { color:#DC3545; font-weight:bold; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .daypick { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; background:white; padding:8px 14px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.08); margin:0 5px 10px; vertical-align:middle; }
+  .daypick label { font-size:14px; font-weight:600; color:#1F4E79; }
+  .daypick input[type=range] { width:200px; accent-color:#1F4E79; }
+  .daypick input[type=number] { width:70px; padding:8px; font-size:14px; border:1px solid #ccc; border-radius:6px; text-align:center; }
+  .daypick button { margin:0; padding:8px 14px; }
+  .daypick button.preset { background:#EBF3FB; color:#1F4E79; padding:8px 10px; font-size:13px; }
+  .daypick button.preset:hover:not(:disabled) { background:#d5e6f6; }
+  .daypick button.preset.active { background:#1F4E79; color:white; }
+  #diag { font-family:monospace; font-size:11px; background:#1e1e1e; color:#0f0; padding:12px; border-radius:6px; margin-top:20px; display:none; max-height:300px; overflow-y:auto; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>💵 $1000 Yatırım Getiri Karşılaştırması</h1>
+  <p class="sub">Son <span id="daysLabel">30</span> Gün: <b id="rangeLabel">—</b></p>
+
+  <div id="status">Hazır. Otomatik yükleniyor...</div>
+
+  <div class="controls">
+    <div class="daypick">
+      <label for="daysNum">📅 Gün (1-365):</label>
+      <input type="range" id="daysRange" min="1" max="365" value="30">
+      <input type="number" id="daysNum" min="1" max="365" value="30">
+      <button id="applyBtn" onclick="applyDays()">Uygula</button>
+      <button class="preset" data-d="7"   onclick="applyDays(7)">7</button>
+      <button class="preset" data-d="30"  onclick="applyDays(30)">30</button>
+      <button class="preset" data-d="90"  onclick="applyDays(90)">90</button>
+      <button class="preset" data-d="180" onclick="applyDays(180)">180</button>
+      <button class="preset" data-d="365" onclick="applyDays(365)">365</button>
+    </div>
+    <button id="loadBtn" onclick="loadData(true)">📊 Yenile</button>
+    <button id="csvBtn" class="secondary" onclick="downloadCSV()" disabled>⬇️ CSV İndir</button>
+    <button class="danger" onclick="toggleDiag()">🔧 Tanılama</button>
+  </div>
+
+  <div id="diag"></div>
+  <div id="summary" class="summary-strip"></div>
+  <div class="chart-container"><canvas id="chart"></canvas></div>
+  <div id="tableContainer"></div>
+
+<script>
+// ================================================================
+// AYARLAR — her enstrümana "short" (grafik etiketi) eklendi
+// ================================================================
+const ASSETS = [
+  { name: "BIST100",      short: "BIST",   tickers: ["XU100.IS"],             color: "#D62728", unit: "puan" },
+  { name: "NASDAQ100",    short: "NDX",    tickers: ["^NDX", "QQQ"],          color: "#1F4E79", unit: "$" },
+  { name: "KRIPTO (BTC)", short: "BTC",    tickers: ["BTC-USD"],              color: "#F7931A", unit: "$" },
+  { name: "ALTIN (ONS)",  short: "ALTIN",  tickers: ["GC=F", "XAUUSD=X"],     color: "#DAA520", unit: "$/ons" },
+  { name: "GUMUS (ONS)",  short: "GÜMÜŞ",  tickers: ["SI=F", "XAGUSD=X"],     color: "#A9A9A9", unit: "$/ons" },
+  { name: "PLATIN (ONS)", short: "PLATİN", tickers: ["PL=F", "XPTUSD=X"],     color: "#17BECF", unit: "$/ons" },
+  { name: "BAKIR",        short: "BAKIR",  tickers: ["HG=F"],                 color: "#B87333", unit: "$/lb" },
+  { name: "SEKER",        short: "ŞEKER",  tickers: ["SB=F"],                 color: "#FF69B4", unit: "¢/lb" },
+  { name: "KAHVE",        short: "KAHVE",  tickers: ["KC=F"],                 color: "#6D4C41", unit: "¢/lb" },
+  { name: "BUGDAY",       short: "BUĞDAY", tickers: ["ZW=F"],                 color: "#E6C200", unit: "¢/bu" },
+];
+
+// Kısa isim lookup (grafik etiketleri için)
+const ASSET_SHORT = Object.fromEntries(ASSETS.map(a => [a.name, a.short]));
+
+const clampDays = n => Math.min(365, Math.max(1, Math.round(Number(n)) || 30));
+let DAYS_BACK  = clampDays((() => { try { return localStorage.getItem('getiri_days'); } catch { return 30; } })());
+let END_DATE   = new Date();
+let START_DATE = new Date(END_DATE.getTime() - DAYS_BACK * 86400000);
+const BASE_AMOUNT = 1000;
+const TIMEOUT_MS  = 10000;
+const CACHE_KEY   = 'getiri_cache_v7';
+const CACHE_TTL   = 60 * 60 * 1000;
+
+const isHourly = () => DAYS_BACK <= 7;   // kısa aralıkta saatlik veri
+
+function updateRange() {
+  END_DATE   = new Date();
+  START_DATE = new Date(END_DATE.getTime() - DAYS_BACK * 86400000);
+  const fmt = d => d.toLocaleDateString('tr-TR', { day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('rangeLabel').textContent = `${fmt(START_DATE)} → ${fmt(END_DATE)}`;
+  document.getElementById('daysLabel').textContent = DAYS_BACK;
+  document.getElementById('daysNum').value = DAYS_BACK;
+  document.getElementById('daysRange').value = DAYS_BACK;
+  document.title = `$1000 Yatırım — Son ${DAYS_BACK} Gün`;
+  document.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', +b.dataset.d === DAYS_BACK));
+}
+
+function applyDays(n) {
+  DAYS_BACK = clampDays(n !== undefined ? n : document.getElementById('daysNum').value);
+  try { localStorage.setItem('getiri_days', DAYS_BACK); } catch {}
+  loadData(true);
+}
+
+(function () {
+  const num = document.getElementById('daysNum'), rng = document.getElementById('daysRange');
+  rng.addEventListener('input', () => { num.value = rng.value; });
+  num.addEventListener('input', () => { if (num.value !== '') rng.value = clampDays(num.value); });
+  num.addEventListener('keydown', e => { if (e.key === 'Enter') applyDays(); });
+  rng.addEventListener('change', () => applyDays());
+  updateRange();
+})();
+
+const PROXIES = [
+  { name: 'jina.ai',      build: u => `https://r.jina.ai/${u}` },
+  { name: 'allorigins',   build: u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+  { name: 'corsproxy.io', build: u => `https://corsproxy.io/?url=${encodeURIComponent(u)}` },
+  { name: 'codetabs',     build: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}` },
+  { name: 'cors.eu.org',  build: u => `https://cors.eu.org/${u}` },
+  { name: 'proxy.cors.sh',build: u => `https://proxy.cors.sh/${u}` },
+];
+
+function fmtPrice(p, unit) {
+  if (p == null || isNaN(p)) return '—';
+  let num;
+  if (p >= 10000)      num = p.toLocaleString('tr-TR', { maximumFractionDigits: 0 });
+  else if (p >= 1000)  num = p.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
+  else if (p >= 100)   num = p.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  else if (p >= 1)     num = p.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+  else                 num = p.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  if (unit === '$' || unit === '$/ons' || unit === '$/lb') return '$' + num;
+  if (unit === '¢/lb' || unit === '¢/bu') return num + '¢';
+  return num;
+}
+
+const diagLog = [];
+function diag(line) {
+  const ts = new Date().toLocaleTimeString('tr-TR');
+  diagLog.push(`[${ts}] ${line}`);
+  const el = document.getElementById('diag');
+  if (el) { el.textContent = diagLog.join('\n'); el.scrollTop = el.scrollHeight; }
+  console.log(line);
+}
+function toggleDiag() {
+  const el = document.getElementById('diag');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function tryProxy(proxy, yahooUrl) {
+  const url = proxy.build(yahooUrl);
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let text = await res.text();
+    if (text.trim().startsWith('Title:') || text.includes('\n\n{')) {
+      const idx = text.indexOf('{');
+      if (idx >= 0) text = text.slice(idx);
+    }
+    const j = JSON.parse(text);
+    const r = j?.chart?.result?.[0];
+    if (!r) throw new Error('chart.result yok');
+    const ts = r.timestamp || [];
+    const cl = r.indicators?.quote?.[0]?.close || [];
+    const data = [];
+    for (let i = 0; i < ts.length; i++) {
+      if (cl[i] != null) data.push({ date: new Date(ts[i] * 1000), close: cl[i] });
+    }
+    if (data.length < 2) throw new Error(`az veri (${data.length})`);
+    return { data, proxy: proxy.name };
+  } catch (e) {
+    throw new Error(`${proxy.name}: ${e.message}`);
+  }
+}
+
+async function fetchTicker(ticker) {
+  const p1 = Math.floor(START_DATE.getTime() / 1000);
+  const p2 = Math.floor(END_DATE.getTime() / 1000);
+  for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+    const yUrl = `https://${host}/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${p1}&period2=${p2}&interval=${isHourly() ? '1h' : '1d'}`;
+    try {
+      const result = await Promise.any(PROXIES.map(p => tryProxy(p, yUrl)));
+      diag(`✓ ${ticker} → ${result.proxy} (${result.data.length} gün)`);
+      return result.data;
+    } catch (err) {
+      if (err.errors) diag(`✗ ${ticker} @ ${host} → ${err.errors.map(e => e.message).join(' | ')}`);
+    }
+  }
+  diag(`✗✗ ${ticker}: başarısız`);
+  return null;
+}
+
+function readCache() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (Date.now() - obj.ts > CACHE_TTL) return null;
+    if (obj.days !== DAYS_BACK) return null;
+    const restored = {};
+    for (const [k, v] of Object.entries(obj.data)) {
+      restored[k] = v.map(p => ({ date: new Date(p.date), close: p.close }));
+    }
+    return Object.keys(restored).length >= 3 ? restored : null;
+  } catch { return null; }
+}
+function writeCache(data) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+      ts: Date.now(),
+      days: DAYS_BACK,
+      data,
+    }));
+  } catch {}
+}
+
+let runId = 0;
+async function loadData(forceReload = false) {
+  if (forceReload) updateRange();
+  const myRun = ++runId;
+  const btn    = document.getElementById('loadBtn');
+  const status = document.getElementById('status');
+
+  if (!forceReload) {
+    const cached = readCache();
+    if (cached) {
+      status.className = 'success';
+      status.textContent = `✓ Önbellekten yüklendi (${Object.keys(cached).length} enstrüman).`;
+      renderAll(cached);
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  status.className = '';
+  status.textContent = 'Veriler yükleniyor...';
+  diagLog.length = 0;
+  diag(`Başlangıç: ${START_DATE.toISOString().split('T')[0]} → ${END_DATE.toISOString().split('T')[0]}`);
+
+  let done = 0;
+  const total = ASSETS.length;
+  const tick = () => { done++; status.textContent = `Yükleniyor... (${done}/${total})`; };
+
+  const firstPass = await Promise.all(ASSETS.map(async a => {
+    const data = await fetchTicker(a.tickers[0]);
+    tick();
+    return { name: a.name, data };
+  }));
+
+  const results = {};
+  firstPass.forEach(r => { if (r.data) results[r.name] = r.data; });
+
+  const failed = ASSETS.filter(a => !results[a.name] && a.tickers.length > 1);
+  if (failed.length) {
+    status.textContent = `Alternatif tickerlar (${failed.length})...`;
+    const retries = await Promise.all(failed.map(async a => {
+      for (let i = 1; i < a.tickers.length; i++) {
+        const d = await fetchTicker(a.tickers[i]);
+        if (d) return { name: a.name, data: d };
+      }
+      return { name: a.name, data: null };
+    }));
+    retries.forEach(r => { if (r.data) results[r.name] = r.data; });
+  }
+
+  if (myRun !== runId) return;   // arada yeni seçim yapıldıysa bu sonucu at
+  const count = Object.keys(results).length;
+  if (count === 0) {
+    status.className = 'error';
+    status.innerHTML = `❌ Hiç veri alınamadı.<br><small>Sağ üstteki <b>🔧 Tanılama</b> butonuna basıp hatayı görün.</small>`;
+    btn.disabled = false;
+    toggleDiag();
+    return;
+  }
+
+  writeCache(results);
+  renderAll(results);
+
+  const missing = ASSETS.filter(a => !results[a.name]).map(a => a.name);
+  if (missing.length) {
+    status.className = 'warn';
+    status.textContent = `⚠️ ${count}/${total} enstrüman yüklendi. Eksikler: ${missing.join(', ')}`;
+  } else {
+    status.className = 'success';
+    status.textContent = `✓ ${count} enstrüman yüklendi (son ${DAYS_BACK} gün).`;
+  }
+  btn.disabled = false;
+}
+
+function renderAll(results) {
+  renderSummary(results);
+  renderChart(results);
+  renderTable(results);
+  document.getElementById('csvBtn').disabled = false;
+  window._data = results;
+}
+
+function renderSummary(results) {
+  const cards = [];
+  for (const a of ASSETS) {
+    const d = results[a.name]; if (!d) continue;
+    const currentPrice = d[d.length-1].close;
+    const currentValue = BASE_AMOUNT * (currentPrice / d[0].close);
+    cards.push({ name: a.name, color: a.color, unit: a.unit,
+                 currentPrice, currentValue,
+                 pct: (currentValue / BASE_AMOUNT - 1) * 100 });
+  }
+  cards.push({ name: 'DOLAR (nakit)', color: '#7F7F7F', unit: '$',
+               currentPrice: null, currentValue: 1000, pct: 0 });
+  cards.sort((a, b) => b.pct - a.pct);
+
+  document.getElementById('summary').innerHTML = cards.map(c => {
+    const pc = c.pct >= 0 ? 'positive' : 'negative';
+    const sign = c.pct >= 0 ? '+' : '';
+    const priceLine = c.currentPrice != null
+      ? `Güncel: <b>${fmtPrice(c.currentPrice, c.unit)}</b>`
+      : `Sabit (nakit)`;
+    return `<div class="summary-card" style="border-left-color:${c.color}">
+        <div class="name">${c.name}</div>
+        <div class="value">$${c.currentValue.toFixed(2)}</div>
+        <div class="pct ${pc}">${sign}${c.pct.toFixed(2)}%</div>
+        <div class="price">${priceLine}</div>
+      </div>`;
+  }).join('');
+}
+
+// ================================================================
+// GRAFİK SAĞ ETİKETLERİ — artık "$1234 BTC" şeklinde
+// ================================================================
+const rightLabelsPlugin = {
+  id: 'rightLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea: { right } } = chart;
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    const labels = [];
+    chart.data.datasets.forEach((ds, i) => {
+      if (ds.label === 'DOLAR (nakit)') return;
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden || !meta.data.length) return;
+      const lastPoint = meta.data[meta.data.length - 1];
+      if (!lastPoint) return;
+
+      const val  = ds.data[ds.data.length - 1].y;
+      const name = ASSET_SHORT[ds.label] || '';
+      labels.push({
+        y: lastPoint.y,
+        valueText: '$' + val.toFixed(0),
+        nameText: name,
+        color: ds.borderColor,
+      });
+    });
+
+    // Çakışmayı önle
+    labels.sort((a, b) => a.y - b.y);
+    const minGap = 15;
+    for (let i = 1; i < labels.length; i++) {
+      if (labels[i].y - labels[i-1].y < minGap) labels[i].y = labels[i-1].y + minGap;
+    }
+
+    // Her etiket: değer (bold) + isim (normal, hafif soluk)
+    for (const l of labels) {
+      ctx.font = 'bold 11px "Segoe UI", Arial';
+      const valW  = ctx.measureText(l.valueText).width;
+
+      ctx.font = '11px "Segoe UI", Arial';
+      const nameW = ctx.measureText(l.nameText).width;
+
+      const totalW = valW + 4 + nameW;
+      // Arka plan kutusu (okunabilirlik)
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillRect(right + 2, l.y - 8, totalW + 8, 16);
+
+      // Değer (kalın, rengi ile)
+      ctx.font = 'bold 11px "Segoe UI", Arial';
+      ctx.fillStyle = l.color;
+      ctx.fillText(l.valueText, right + 5, l.y);
+
+      // İsim (normal, biraz soluk)
+      ctx.font = '11px "Segoe UI", Arial';
+      ctx.fillStyle = l.color;
+      ctx.globalAlpha = 0.85;
+      ctx.fillText(l.nameText, right + 5 + valW + 4, l.y);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+};
+
+function renderChart(results) {
+  const datasets = [];
+  for (const a of ASSETS) {
+    const d = results[a.name]; if (!d) continue;
+    const base = d[0].close;
+    datasets.push({
+      label: a.name,
+      data: d.map(p => ({ x: p.date, y: BASE_AMOUNT * (p.close / base) })),
+      borderColor: a.color, backgroundColor: a.color,
+      borderWidth: 2, pointRadius: d.length > 60 ? 0 : 2, pointHoverRadius: 4, tension: 0.15,
+    });
+  }
+  const anyD = Object.values(results)[0];
+  if (anyD) {
+    datasets.push({
+      label: 'DOLAR (nakit)',
+      data: [{ x: anyD[0].date, y: 1000 }, { x: anyD[anyD.length-1].date, y: 1000 }],
+      borderColor: '#7F7F7F', borderWidth: 2, borderDash: [6, 6], pointRadius: 0,
+    });
+  }
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (window._chart) window._chart.destroy();
+  window._chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    plugins: [rightLabelsPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 400 },
+      layout: { padding: { right: 120 } },   // ← isim sığsın diye artırıldı
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: $${c.parsed.y.toFixed(2)}` } }
+      },
+      scales: {
+        x: { type: 'time',
+             time: { unit: DAYS_BACK <= 2 ? 'hour' : DAYS_BACK <= 45 ? 'day' : DAYS_BACK <= 200 ? 'week' : 'month',
+                     tooltipFormat: isHourly() ? 'dd MMM yyyy HH:mm' : 'dd MMM yyyy',
+                     displayFormats: { hour: 'dd MMM HH:mm', day: 'dd MMM', week: 'dd MMM', month: 'MMM yyyy' } },
+             title: { display: true, text: 'Tarih' }, grid: { color: '#eee' } },
+        y: { title: { display: true, text: 'Değer (USD)' }, grid: { color: '#eee' } }
+      }
+    }
+  });
+}
+
+function renderTable(results) {
+  const rows = [];
+  for (const a of ASSETS) {
+    const d = results[a.name]; if (!d) continue;
+    const startPrice = d[0].close;
+    const currentPrice = d[d.length-1].close;
+    const currentValue = BASE_AMOUNT * (currentPrice / startPrice);
+    rows.push({ name: a.name, unit: a.unit, startPrice, currentPrice, currentValue,
+                pct: (currentValue / BASE_AMOUNT - 1) * 100 });
+  }
+  rows.push({ name: 'DOLAR (nakit)', unit: '$', startPrice: null, currentPrice: null,
+              currentValue: 1000, pct: 0 });
+  rows.sort((a, b) => b.pct - a.pct);
+  const best = rows[0].name;
+
+  let html = `<table><thead><tr>
+      <th>#</th><th>Enstrüman</th>
+      <th class="num">Başlangıç Fiyatı</th>
+      <th class="num">Güncel Fiyat</th>
+      <th class="num">$1000 →</th>
+      <th class="num">Getiri</th>
+    </tr></thead><tbody>`;
+
+  rows.forEach((r, i) => {
+    const isBest = r.name === best ? 'best' : '';
+    const pc = r.pct >= 0 ? 'positive' : 'negative';
+    const sign = r.pct >= 0 ? '+' : '';
+    html += `<tr class="${isBest}">
+      <td>${i+1}</td>
+      <td>${r.name}</td>
+      <td class="num">${r.startPrice != null ? fmtPrice(r.startPrice, r.unit) : '—'}</td>
+      <td class="num">${r.currentPrice != null ? fmtPrice(r.currentPrice, r.unit) : '—'}</td>
+      <td class="num">$${r.currentValue.toFixed(2)}</td>
+      <td class="num ${pc}">${sign}${r.pct.toFixed(2)}%</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('tableContainer').innerHTML = html;
+}
+
+function downloadCSV() {
+  const data = window._data; if (!data) return;
+  const bases = {};
+  for (const a of ASSETS) if (data[a.name]?.length) bases[a.name] = data[a.name][0].close;
+
+  const dateMap = new Map();
+  for (const a of ASSETS) {
+    if (!data[a.name]) continue;
+    for (const p of data[a.name]) {
+      const key = isHourly() ? p.date.toISOString().slice(0, 16) : p.date.toISOString().split('T')[0];
+      if (!dateMap.has(key)) dateMap.set(key, {});
+      dateMap.get(key)[a.name] = BASE_AMOUNT * (p.close / bases[a.name]);
+    }
+  }
+  const dates = [...dateMap.keys()].sort();
+  const active = ASSETS.filter(a => data[a.name]);
+  const lines = ['Tarih,' + active.map(a => a.name).join(',') + ',DOLAR (nakit)'];
+  const last = {};
+  for (const d of dates) {
+    const row = [d];
+    for (const a of active) {
+      const v = dateMap.get(d)[a.name];
+      if (v != null) last[a.name] = v;
+      row.push(last[a.name] != null ? last[a.name].toFixed(2) : '');
+    }
+    row.push('1000.00');
+    lines.push(row.join(','));
+  }
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `getiri_son${DAYS_BACK}gun_${END_DATE.toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
+
+window.addEventListener('DOMContentLoaded', () => setTimeout(() => loadData(false), 200));
+</script>
+</body>
+</html>
