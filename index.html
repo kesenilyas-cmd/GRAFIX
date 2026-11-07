@@ -21,13 +21,13 @@
   button.secondary:hover:not(:disabled) { background:#5a6268; }
   button.danger { background:#DC3545; }
   .chart-container { background:white; padding:20px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.1); margin-bottom:20px; height:620px; }
-  .summary-strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:10px; margin-bottom:20px; }
-  .summary-card { background:white; padding:12px 14px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); border-left:4px solid #ccc; transition:transform .15s; }
+  .summary-strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(135px,1fr)); gap:8px; margin-bottom:20px; }
+  .summary-card { background:white; padding:7px 10px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); border-left:4px solid #ccc; transition:transform .15s; }
   .summary-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.12); }
-  .summary-card .name { font-size:12px; color:#555; font-weight:600; margin-bottom:4px; letter-spacing:.3px; }
-  .summary-card .value { font-size:20px; font-weight:bold; color:#1F4E79; line-height:1.1; }
-  .summary-card .pct { font-size:13px; font-weight:bold; margin-top:2px; }
-  .summary-card .price { font-size:11px; color:#888; margin-top:6px; padding-top:6px; border-top:1px solid #eee; }
+  .summary-card .name { font-size:11px; color:#555; font-weight:600; margin-bottom:2px; letter-spacing:.3px; }
+  .summary-card .value { font-size:16px; font-weight:bold; color:#1F4E79; line-height:1.1; }
+  .summary-card .pct { font-size:12px; font-weight:bold; margin-top:1px; }
+  .summary-card .price { font-size:10px; color:#888; margin-top:4px; padding-top:4px; border-top:1px solid #eee; }
   .summary-card .price b { color:#444; }
   table { width:100%; border-collapse:collapse; background:white; box-shadow:0 2px 8px rgba(0,0,0,.1); border-radius:8px; overflow:hidden; }
   th { background:#1F4E79; color:white; padding:11px 10px; text-align:left; font-size:13px; }
@@ -37,11 +37,13 @@
   .positive { color:#28A745; font-weight:bold; }
   .negative { color:#DC3545; font-weight:bold; }
   .num { text-align:right; font-variant-numeric:tabular-nums; }
-  .daypick { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; background:white; padding:8px 14px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.08); margin:0 5px 10px; vertical-align:middle; }
+  .daypick { display:flex; width:100%; box-sizing:border-box; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; background:white; padding:12px 18px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.08); margin:0 0 12px; }
   .daypick label { font-size:14px; font-weight:600; color:#1F4E79; }
-  .daypick input[type=range] { width:200px; accent-color:#1F4E79; }
+  .daypick input[type=range] { flex:1 1 400px; min-width:200px; max-width:760px; accent-color:#1F4E79; }
   .daypick input[type=number] { width:70px; padding:8px; font-size:14px; border:1px solid #ccc; border-radius:6px; text-align:center; }
   .daypick button { margin:0; padding:8px 14px; }
+  .daypick button.step { background:#EBF3FB; color:#1F4E79; font-size:18px; font-weight:bold; padding:6px 16px; line-height:1; }
+  .daypick button.step:hover:not(:disabled) { background:#d5e6f6; }
   .daypick button.preset { background:#EBF3FB; color:#1F4E79; padding:8px 10px; font-size:13px; }
   .daypick button.preset:hover:not(:disabled) { background:#d5e6f6; }
   .daypick button.preset.active { background:#1F4E79; color:white; }
@@ -57,7 +59,9 @@
   <div class="controls">
     <div class="daypick">
       <label for="daysNum">📅 Gün (1-365):</label>
+      <button class="step" id="dayPrev" title="1 gün geri (←)" onclick="stepDays(-1)">◀</button>
       <input type="range" id="daysRange" min="1" max="365" value="30">
+      <button class="step" id="dayNext" title="1 gün ileri (→)" onclick="stepDays(1)">▶</button>
       <input type="number" id="daysNum" min="1" max="365" value="30">
       <button id="applyBtn" onclick="applyDays()">Uygula</button>
       <button class="preset" data-d="7"   onclick="applyDays(7)">7</button>
@@ -118,6 +122,22 @@ function updateRange() {
   document.title = `$1000 Yatırım — Son ${DAYS_BACK} Gün`;
   document.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', +b.dataset.d === DAYS_BACK));
 }
+
+let stepTimer = null;
+function stepDays(delta) {
+  DAYS_BACK = clampDays(DAYS_BACK + delta);
+  document.getElementById('daysNum').value = DAYS_BACK;
+  document.getElementById('daysRange').value = DAYS_BACK;
+  document.getElementById('daysLabel').textContent = DAYS_BACK;
+  document.querySelectorAll('.preset').forEach(b => b.classList.toggle('active', +b.dataset.d === DAYS_BACK));
+  clearTimeout(stepTimer);                 // art arda basışlarda tek istek
+  stepTimer = setTimeout(() => applyDays(DAYS_BACK), 450);
+}
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft')  stepDays(-1);
+  if (e.key === 'ArrowRight') stepDays(1);
+});
 
 function applyDays(n) {
   DAYS_BACK = clampDays(n !== undefined ? n : document.getElementById('daysNum').value);
